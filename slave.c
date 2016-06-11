@@ -6,7 +6,7 @@
 static const char * names[] = {"PTPM_START", "PTPM_SYNC", "PTPM_TIMES", "PTPM_DELAY", "PTPM_NEXT", "PPTS_HELLO"};
 
 // slave it is stateless
-int slave_sm(struct common_data * md, enum Event e, unsigned char * data, int n)
+int slave_sm(struct slave_data * md, enum Event e, unsigned char * data, int n)
 {
 	if(e == EVENT_RESET)
 	{

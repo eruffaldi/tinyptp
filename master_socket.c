@@ -1,25 +1,27 @@
-#include<stdio.h>
-/* socket stuff */
-#include<sys/socket.h>
-/* socket structs */
-#include<netdb.h>
-/* strtol, other string conversion stuff */
-#include<stdlib.h>
-/* string stuff(memset, strcmp, strlen, etc) */
-#include<string.h>
-/* signal stuff */
-#include<signal.h>
+
+#ifdef WIN32
+#include <windows.h>
+#else
+#include <sys/socket.h>
+#include <netdb.h>
 #include <arpa/inet.h>
+#endif
+
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
+
 #include "ptp_common.h"
 
 int main(int argc, char const *argv[])
 {
-	struct common_data md;
+	struct master_data md;
 
 	int myport = 1319;
 	int outport = 1320;
 	const char * myaddress = "0.0.0.0"; // NOTE that it can be multicast
 	const char * outaddress = argc == 1 ? "0.0.0.0" : argv[1];
+	int repeats = argc > 2 ? strtol(argv[2],0,10): 10;
 
 	int sock = socket(AF_INET, SOCK_DGRAM, 0);
 	if(sock == 0)
@@ -40,26 +42,28 @@ int main(int argc, char const *argv[])
     out_addr.sin_addr.s_addr = inet_addr(outaddress);  /* send to server address */
     out_addr.sin_port = htons(outport);
 
+    memset(&md,0,sizeof(md));
 	md.sock = sock;
+	md.nsteps = repeats;
 	md.clientdata = &out_addr;
 	md.clientdatasize = sizeof(out_addr);
+#ifdef WIN32
+	int enable = 1;
+	if(setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (const char*)&enable, sizeof(int)))
+#else
 	int enable = 1;
 	if(setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)))
+#endif
 	{
 		perror("cannot reuseaddr opt\n");
 		return -1;		
 	}
-    if(bind(sock,(struct sockaddr*)&my_addr,sizeof(my_addr)))
+    if(bind(sock,(const struct sockaddr*)&my_addr,sizeof(my_addr)))
     {
     	perror("cannot bind master\n");
     	return -1;
     }
-    /*if(connect(sock,(struct sockadrr*)&out_addr,sizeof(out_addr)))
-    {
-    	perror("cannot conenct to target UDP\n");
-    	return -1;    	
-    }
-    */
+	printf("Listening to %d and sending to %s:%d repeats:%d\n",myport,outaddress,outport,repeats);
 	master_sm(&md,EVENT_RESET,0,0); // initial step
 
 	while(1)

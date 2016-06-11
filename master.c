@@ -56,7 +56,7 @@ enum MasterState { MASTER_START, MASTER_WAIT0,MASTER_TIMES, MASTER_LOOP0R, MASTE
 
 static const char * names[] = {"PTPM_START", "PTPM_SYNC", "PTPM_TIMES", "PTPM_DELAY", "PTPM_NEXT", "PPTS_HELLO"};
 
-int master_sm(struct common_data * md, enum Event e, unsigned char * data, int n)
+int master_sm(struct master_data * md, enum Event e, unsigned char * data, int n)
 {
 	int ptype = -1;
 	int treceived[2];
@@ -71,8 +71,8 @@ int master_sm(struct common_data * md, enum Event e, unsigned char * data, int n
 		if(n == 12 && strncmp((char*)data,"PTP",3) == 0)
 		{			
 			ptype = (int)data[3];
-			treceived[0] = *(int*)data+4;
-			treceived[1] = *(int*)data+8;
+			treceived[0] = *(int*)(data+4);
+			treceived[1] = *(int*)(data+8);
 			printf("master received %s(%d) with t=%d,%d\n",ptype >= 0 && ptype < PTPX_MAX ? names[ptype] : "unknown",ptype,treceived[0],treceived[1]);
 		}
 		else
@@ -91,7 +91,6 @@ int master_sm(struct common_data * md, enum Event e, unsigned char * data, int n
 		    md-> smallest_delay = LONG_MAX;
 		    md-> largest_delay = LONG_MIN;
 		    md-> sum_delay = 0;
-		    md->nsteps = NUM_OF_TIMES;
 		    md->i = 0;
 		    md->bigstate = MASTER_WAIT0;
 		    int dummy[2] = {0,0};
@@ -149,6 +148,7 @@ int master_sm(struct common_data * md, enum Event e, unsigned char * data, int n
 					break;  // restart
 				}
 				md->ms_diff = (TO_NSEC(treceived) - TO_NSEC(md->t1));
+
 				md->bigstate = MASTER_LOOP1;
 				break; // next state
 			}

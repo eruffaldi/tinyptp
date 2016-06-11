@@ -1,18 +1,25 @@
-#include<stdio.h>
-/* socket stuff */
-#include<sys/socket.h>
-/* socket structs */
-#include<netdb.h>
-/* strtol, other string conversion stuff */
-#include<stdlib.h>
-/* string stuff(memset, strcmp, strlen, etc) */
-#include<string.h>
-/* signal stuff */
-#include<signal.h>
 
+
+#ifdef WIN32
+#include <windows.h>
+#else
+#include <sys/socket.h>
+#include <netdb.h>
+#include <arpa/inet.h>
+#endif
+
+#include <stdlib.h>
 
 void ptp_get_time(int in[2])
 {
+#ifdef WIN32
+    // no need for absolute time 
+  __int64 wintime; 
+   GetSystemTimeAsFileTime((FILETIME*)&wintime);
+   wintime      -= 116444736000000000;  //1jan1601 to 1jan1970
+   wintime *= 100; // nanoseconds from 100-nanosecond
+   *(__int64*)in = wintime;
+#else
     /* check for nanosecond resolution support */
     #ifndef CLOCK_REALTIME
         struct timeval tv = {0};
@@ -25,6 +32,7 @@ void ptp_get_time(int in[2])
         in[0] = (int) ts.tv_sec;
         in[1] = (int) ts.tv_nsec;
     #endif
+#endif
 }
 
 void ptp_send_packet(int sock, int what, int t_send[2], void *clientdata,int clientdatasize)

@@ -1,20 +1,20 @@
-#include<stdio.h>
-/* socket stuff */
-#include<sys/socket.h>
-/* socket structs */
-#include<netdb.h>
-/* strtol, other string conversion stuff */
-#include<stdlib.h>
-/* string stuff(memset, strcmp, strlen, etc) */
-#include<string.h>
-/* signal stuff */
-#include<signal.h>
+
+#ifdef WIN32
+#include <windows.h>
+#else
+#include <sys/socket.h>
+#include <netdb.h>
+#endif
+
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
 
 #include "ptp_common.h"
 
 int main(int argc, char const *argv[])
 {
-	struct common_data md;
+	struct slave_data md;
 
 	int myport = 1320;
 	int outport = 1319;
@@ -54,18 +54,14 @@ int main(int argc, char const *argv[])
     	perror("cannot bind master\n");
     	return -1;
     }
-    /*if(connect(sock,(struct sockadrr*)&out_addr,sizeof(out_addr)))
-    {
-    	perror("cannot conenct to target UDP\n");
-    	return -1;    	
-    }
-    */
+	printf("Listening to %d and sending to %s:%d\n",myport,outaddress,outport);
 	slave_sm(&md,EVENT_RESET,0,0); // initial step
-
 	while(1)
 	{
 		unsigned char bufin[128];
-		int n = recv(md.sock,bufin,sizeof(bufin),0);
+		// automatic reply to the receiver
+		int rf = sizeof(out_addr);
+		int n = recvfrom(md.sock,bufin,sizeof(bufin),0,&out_addr,&rf);
 		slave_sm(&md,EVENT_NEWPACKET,bufin,n);
 	}
 	

@@ -12,10 +12,13 @@
 
 #include "ptp_common.h"
 
+void init_socket();
+
 int main(int argc, char const *argv[])
 {
 	struct slave_data md;
 
+	init_socket();
 	int myport = 1320;
 	int outport = 1319;
 	const char * myaddress = "0.0.0.0"; // NOTE that it can be multicast

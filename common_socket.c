@@ -6,9 +6,20 @@
 #include <sys/socket.h>
 #include <netdb.h>
 #include <arpa/inet.h>
+#include <sys/time.h>
 #endif
 
 #include <stdlib.h>
+#include <stdio.h>
+#include <memory.h>
+
+void init_socket()
+{
+  #ifdef WIN32
+    WSADATA wsa_data;
+    long result = ::WSAStartup(MAKEWORD(major, minor), &wsa_data);
+  #endif
+}
 
 void ptp_get_time(int in[2])
 {

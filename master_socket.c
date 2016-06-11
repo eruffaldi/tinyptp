@@ -13,9 +13,13 @@
 
 #include "ptp_common.h"
 
+void init_socket();
+
 int main(int argc, char const *argv[])
 {
 	struct master_data md;
+
+	init_socket(); // for windows
 
 	int myport = 1319;
 	int outport = 1320;

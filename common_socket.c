@@ -17,7 +17,7 @@ void init_socket()
 {
   #ifdef WIN32
     WSADATA wsa_data;
-    long result = ::WSAStartup(MAKEWORD(major, minor), &wsa_data);
+    long result = WSAStartup(MAKEWORD(2, 2), &wsa_data);
   #endif
 }
 

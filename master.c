@@ -60,7 +60,7 @@ static void ptp_send_packet_in(struct master_data * md, int what, int t_send[2])
 	ptp_send_packet(md->sock,bufout,sizeof(bufout),md->clientdata,md->clientdatasize);
 }
 
-enum MasterState { MASTER_START, MASTER_WAIT0,MASTER_TIMES, MASTER_LOOP0R, MASTER_LOOP0, MASTER_LOOP1, MASTER_LOOP1R,MASTER_LOOPEND, MASTER_DONE};
+enum MasterState { MASTER_START, MASTER_WAIT0,MASTER_TIMES, MASTER_SYNC, MASTER_SYNCANS, MASTER_DELAY, MASTER_DELAYANS,MASTER_LOOPEND, MASTER_DONE};
 
 static const char * names[] = {"PTPM_START", "PTPM_SYNC", "PTPM_TIMES", "PTPM_DELAY", "PTPM_NEXT", "PPTS_HELLO"};
 
@@ -97,14 +97,14 @@ int master_sm(struct master_data * md, enum Event e, unsigned char * data, int n
 	switch(md->bigstate)
 	{
 		case MASTER_START:
-			md->largest_offset = LONG_MIN;
+			md-> largest_offset = LONG_MIN;
 		    md-> smallest_offset = LONG_MAX;
 		    md-> sum_offset = 0;
 		    md-> smallest_delay = LONG_MAX;
 		    md-> largest_delay = LONG_MIN;
 		    md-> sum_delay = 0;
-		    md->i = 0;
-		    md->bigstate = MASTER_WAIT0;
+		    md-> i = 0;
+		    md-> bigstate = MASTER_WAIT0;
 		    int dummy[2] = {0,0};
 		    ptp_send_packet_in(md,PTPM_START,dummy);
 		    return 0; // wait
@@ -138,19 +138,23 @@ int master_sm(struct master_data * md, enum Event e, unsigned char * data, int n
 				}
 				else
 				{				
-					md->bigstate = MASTER_LOOP0;
+					md->bigstate = MASTER_SYNC;
 					break; // next state
 				}
 			}
 		    return 0; // ignore
-		case MASTER_LOOP0:
+		case MASTER_SYNC:
 			{	
-				ptp_get_time(md->t1); 
-		    	ptp_send_packet_in(md,PTPM_SYNC,md->t1);
-		    	md->bigstate = MASTER_LOOP0R;
+				// IMPORTANT: in real PTP we use the clock at the moment of the NIC exit				
+				// NOTE: under Linux with SO_TIMESTAMPING it is possible to know when the packet left the NIC so we'll use SYNCDETAIL
+				int t1[2];
+				// sync is: get time, send, get answer, measure offset as difference between answer and original
+				ptp_get_time(t1);
+		    	ptp_send_packet_in(md,PTPM_SYNC,t1);
+		    	md->bigstate = MASTER_SYNCANS;
 			}
 		    return 0; // wait
-		case MASTER_LOOP0R:
+		case MASTER_SYNCANS:
 			if(e == EVENT_NEWPACKET)
 			{
 				if(ptype != PTPM_SYNC)
@@ -159,21 +163,22 @@ int master_sm(struct master_data * md, enum Event e, unsigned char * data, int n
 					md->bigstate = MASTER_START;
 					break;  // restart
 				}
-				md->ms_diff = (TO_NSEC(treceived) - TO_NSEC(treceived2)); // was t1
-
-				md->bigstate = MASTER_LOOP1;
+				md->ms_diff = (TO_NSEC(treceived2) - TO_NSEC(treceived)); // t2-t1
+				md->bigstate = MASTER_DELAY;
 				break; // next state
 			}
 			else
 				return 0; // ignore
-		case MASTER_LOOP1:
+		case MASTER_DELAY:
 			{	
-				ptp_get_time(md->t3);
-		    	ptp_send_packet_in(md,PTPM_DELAY,md->t3);
-		    	md->bigstate = MASTER_LOOP1R;
+				// this is a REQUEST for DELAY we don't care about master time here
+				int tmp[2];
+				ptp_get_time(tmp);
+		    	ptp_send_packet_in(md,PTPM_DELAY,tmp); // NOT used in protocol
+		    	md->bigstate = MASTER_DELAYANS;
 			}
 		    return 0; // wait
-		case MASTER_LOOP1R:
+		case MASTER_DELAYANS:
 			if(e == EVENT_NEWPACKET)
 			{
 				if(ptype != PTPM_DELAY)
@@ -184,9 +189,10 @@ int master_sm(struct master_data * md, enum Event e, unsigned char * data, int n
 				}
 				else
 				{
-					// TODO: store received data inside t3, measure t4 now
-				    //ptp_receive_packet(md->sock, md->t3, sizeof(md->t3), md->t4, NULL);
-				    md->sm_diff =  (TO_NSEC(treceived) - TO_NSEC(treceived2)); // was t3
+					// TODO: replace it with the SOCKET timestamp if SO_TIMESTAMP available
+					int t4[2];
+					ptp_get_time(t4); // == t4
+				    md->sm_diff =  (TO_NSEC(t4) - TO_NSEC(treceived2)); // t4-t3
 				    md->bigstate = MASTER_LOOPEND;				   
 				 	break; // next state
 				}
@@ -212,7 +218,6 @@ int master_sm(struct master_data * md, enum Event e, unsigned char * data, int n
 	        if (md->smallest_delay > delay) {
 	            md->smallest_delay = delay;
 	        }
-        	md->i++;
         	if(++md->i >= md->nsteps)
         	{
         		md->bigstate = MASTER_DONE;        		
@@ -222,8 +227,8 @@ int master_sm(struct master_data * md, enum Event e, unsigned char * data, int n
         	else
         	{
 				int dummy[2] = {0,0};
-        		md->bigstate = MASTER_LOOP0;
 		        ptp_send_packet_in(md, PTPM_NEXT, dummy);
+        		md->bigstate = MASTER_SYNC;
 		        return 0; // wait
         	}
         		}

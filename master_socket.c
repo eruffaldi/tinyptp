@@ -67,7 +67,22 @@ int main(int argc, char const *argv[])
     	perror("cannot bind master\n");
     	return -1;
     }
-	printf("Listening to %d and sending to %s:%d repeats:%d\n",myport,outaddress,outport,repeats);
+
+#ifdef SO_TIMESTAMP
+    // just for checking capability, BUT not used
+    int hastimestamp = 0;
+	{ 
+			int on = 1;
+		if (setsockopt(sock, SOL_SOCKET, SO_TIMESTAMP, &on, sizeof(on)) < 0)
+		{
+			perror("setsockopt SO_TIMESTAMP");
+		}
+		else 
+			hastimestamp = 1;
+	}
+#endif
+
+	printf("Listening to %d and sending to %s:%d repeats:%d %s\n",myport,outaddress,outport,repeats,hastimestamp? "has timestamp" : "");
 	master_sm(&md,EVENT_RESET,0,0); // initial step
 
 	while(1)

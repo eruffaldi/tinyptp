@@ -23,7 +23,8 @@ int main(int argc, char const *argv[])
 	int myport = 1320;
 	int outport = 1319;
 	const char * myaddress = "0.0.0.0"; // NOTE that it can be multicast
-
+	if(argc > 1)
+		test_extra_offset_ns = strtol(argv[1],0,10);
 	int sock = socket(AF_INET, SOCK_DGRAM, 0);
 	if(sock == 0)
 	{

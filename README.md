@@ -1,6 +1,11 @@
 
+Minimal PTP
+===========
 
-- abstract sockets
-- state machine based
+Simple implementation for embedding
 
-Started from: https://github.com/bestvibes/IEEE1588-PTP
+
+More Ideas
+==========
+
+- merge master.c and slave.c

@@ -13,6 +13,7 @@
 #include "ptp_common.h"
 
 void init_socket();
+extern long long test_extra_offset_ns;
 
 int main(int argc, char const *argv[])
 {
@@ -22,7 +23,6 @@ int main(int argc, char const *argv[])
 	int myport = 1320;
 	int outport = 1319;
 	const char * myaddress = "0.0.0.0"; // NOTE that it can be multicast
-	const char * outaddress =  argc == 1 ? "0.0.0.0" : argv[1];
 
 	int sock = socket(AF_INET, SOCK_DGRAM, 0);
 	if(sock == 0)
@@ -39,9 +39,6 @@ int main(int argc, char const *argv[])
     my_addr.sin_addr.s_addr = inet_addr(myaddress);  /* send to server address */
     my_addr.sin_port = htons(myport);
 
-    out_addr.sin_family = AF_INET;
-    out_addr.sin_addr.s_addr = inet_addr(outaddress);  /* send to server address */
-    out_addr.sin_port = htons(outport);
 
 	md.sock = sock;
 	md.clientdata = &out_addr;
@@ -57,7 +54,7 @@ int main(int argc, char const *argv[])
     	perror("cannot bind master\n");
     	return -1;
     }
-	printf("Listening to %d and sending to %s:%d\n",myport,outaddress,outport);
+	printf("Listening to %d\n",myport);
 	slave_sm(&md,EVENT_RESET,0,0); // initial step
 	while(1)
 	{

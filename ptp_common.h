@@ -30,6 +30,8 @@ struct master_data
     long long ms_diff,sm_diff;
     long long offset,delay;
 
+    int alttime[2];
+
     // networking
     int sock;
 };
@@ -40,6 +42,7 @@ struct slave_data
     int sock;
     void * clientdata;
     int clientdatasize;
+    int alttime[2];
 };
 
 // master state machine

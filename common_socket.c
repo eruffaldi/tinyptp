@@ -52,6 +52,64 @@ void ptp_get_time(int in[2])
 
 void ptp_send_packet(int sock, const char * data, int size, void *clientdata,int clientdatasize)
 {
-//    send(sock, bufout, 12, 0); //using connect , 0, (struct sockaddr *) clientdata, clientdatasize);
     sendto(sock, data, size, 0, (struct sockaddr *) clientdata, clientdatasize);
 }
+
+#ifdef SO_TIMESTAMP
+int recv_with_timestamp(int sock, char * bufin, int bufin_size, int flags, struct sockaddr_in * from_addr, int* from_addr_size, int alttime[2])
+{
+      // FROM: https://www.kernel.org/doc/Documentation/networking/timestamping/timestamping.c
+      int n;
+      struct timeval tv;
+      struct msghdr msg;
+      struct iovec iov;
+      struct cmsghdr *cmsg;
+      struct {
+        struct cmsghdr cm;
+        char control[512]; // maybe too much
+      } control;
+      memset(&msg, 0, sizeof(msg));
+      iov.iov_base = bufin;
+      iov.iov_len = bufin_size;
+      msg.msg_iov = &iov;
+      msg.msg_iovlen = 1;
+      msg.msg_name = (caddr_t)from_addr;
+      msg.msg_namelen = *from_addr_size;
+      msg.msg_control = &control;
+      msg.msg_controllen = sizeof(control);
+      // mark default
+      alttime[0] = 0;
+      alttime[1] = 0;
+      n = recvmsg(sock,&msg,flags); //|MSG_DONTWAIT|MSG_ERRQUEUE);
+#if 1
+  // generic loopy from linux
+      for (cmsg = CMSG_FIRSTHDR(&msg); cmsg; cmsg = CMSG_NXTHDR(&msg, cmsg)) {
+        switch (cmsg->cmsg_type) {
+        case SOL_SOCKET:      
+          switch (cmsg->cmsg_type) {
+            case SO_TIMESTAMP: 
+              {
+                struct timeval *stamp = (struct timeval *)CMSG_DATA(cmsg);
+                alttime[0] = stamp->tv_sec;
+                alttime[1] = (int)(stamp->tv_usec*1000 + test_extra_offset_ns);
+                return n; // no need to wait for the rest
+              }
+              break;
+          }
+        }
+      }
+#else
+    // compact as in OSX ping (when we are sure of what we setted)
+      cmsg = (struct cmsghdr *)&control;
+      if (cmsg->cmsg_level == SOL_SOCKET &&
+          cmsg->cmsg_type == SCM_TIMESTAMP &&
+          cmsg->cmsg_len == CMSG_LEN(sizeof tv)) {
+        /* Copy to avoid alignment problems: */
+        memcpy(&tv, CMSG_DATA(cmsg), sizeof(tv));
+        alttime[0] = tv.tv_sec;
+        alttime[1] = (int)(tv.tv_usec*1000 + test_extra_offset_ns);
+      }
+#endif
+      return n;
+}
+#endif

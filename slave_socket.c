@@ -15,6 +15,10 @@
 void init_socket();
 extern long long test_extra_offset_ns;
 
+// only used if SO_TIMESTAMP
+extern int recv_with_timestamp(int sock, char * bufin, int bufin_size, int flags, struct sockaddr_in * from_addr, int *from_addr_size, int alttime[2]);
+
+
 int main(int argc, char const *argv[])
 {
 	struct slave_data md;
@@ -55,14 +59,33 @@ int main(int argc, char const *argv[])
     	perror("cannot bind master\n");
     	return -1;
     }
-	printf("Listening to %d\n",myport);
+
+    int hastimestamp = 0;
+#ifdef SO_TIMESTAMP
+	{ 
+		if (setsockopt(sock, SOL_SOCKET, SO_TIMESTAMP, &hastimestamp, sizeof(hastimestamp)) < 0)
+		{
+			perror("setsockopt SO_TIMESTAMP");
+		}
+		else 
+			hastimestamp = 1;
+	}
+#endif
+
+	printf("Listening to %d%s\n",myport,hastimestamp ? "with timestamp" : "");
 	slave_sm(&md,EVENT_RESET,0,0); // initial step
 	while(1)
 	{
 		unsigned char bufin[128];
 		// automatic reply to the receiver
 		int rf = sizeof(out_addr);
-		int n = recvfrom(md.sock,bufin,sizeof(bufin),0,&out_addr,&rf);
+		int n;
+#ifdef SO_TIMESTAMP		
+		if(hastimestamp)
+			n = recv_with_timestamp(md.sock,bufin,sizeof(bufin),0, &out_addr,&rf,md.alttime);
+		else
+#endif
+			 n = recvfrom(md.sock,bufin,sizeof(bufin),0,&out_addr,&rf);
 		slave_sm(&md,EVENT_NEWPACKET,bufin,n);
 	}
 	

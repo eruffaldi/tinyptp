@@ -15,6 +15,10 @@
 
 void init_socket();
 
+
+// only used if SO_TIMESTAMP
+extern int recv_with_timestamp(int sock, char * bufin, int bufin_size,int flags, struct sockaddr_in * from_addr, int*from_addr_size, int alttime[2]);
+
 int main(int argc, char const *argv[])
 {
 	struct master_data md;
@@ -68,12 +72,10 @@ int main(int argc, char const *argv[])
     	return -1;
     }
 
-#ifdef SO_TIMESTAMP
-    // just for checking capability, BUT not used
     int hastimestamp = 0;
+#ifdef SO_TIMESTAMP
 	{ 
-			int on = 1;
-		if (setsockopt(sock, SOL_SOCKET, SO_TIMESTAMP, &on, sizeof(on)) < 0)
+		if (setsockopt(sock, SOL_SOCKET, SO_TIMESTAMP, &hastimestamp, sizeof(hastimestamp)) < 0)
 		{
 			perror("setsockopt SO_TIMESTAMP");
 		}
@@ -81,14 +83,21 @@ int main(int argc, char const *argv[])
 			hastimestamp = 1;
 	}
 #endif
-
-	printf("Listening to %d and sending to %s:%d repeats:%d %s\n",myport,outaddress,outport,repeats,hastimestamp? "has timestamp" : "");
+	printf("Listening to %d and sending to %s:%d repeats:%d%s\n",myport,outaddress,outport,repeats,hastimestamp? "has timestamp" : "");
 	master_sm(&md,EVENT_RESET,0,0); // initial step
+
 
 	while(1)
 	{
-		unsigned char bufin[128];
-		int n = recv(md.sock,bufin,sizeof(bufin),0);
+		char bufin[128];
+		int n;
+		int rf = sizeof(out_addr);
+#ifdef SO_TIMESTAMP		
+		if(hastimestamp)
+			n = recv_with_timestamp(md.sock,bufin,sizeof(bufin),0,&out_addr,&rf,md.alttime);
+		else
+#endif
+			n = recv(md.sock,bufin,sizeof(bufin),0);
 		if(master_sm(&md,EVENT_NEWPACKET,bufin,n))
 		{
 		    printf("Average Offset = %lldns\n", md.sum_offset/md.steps);

@@ -1,6 +1,7 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <memory.h>
+#include <string.h>
 #include "ptp_common.h"
 
 // https://github.com/bestvibes/IEEE1588-PTP/blob/dev/slave/slave.c
@@ -35,6 +36,19 @@ int slave_sm(struct slave_data * md, enum Event e, unsigned char * data, int n)
 		    int treceived2[2];
         	int now[2];
 			ptp_get_time(now); // TODO: replace it with the SOCKET timestamp if SO_TIMESTAMP available
+        	if(md->alttime[0] != 0 || md->alttime[1] != 0)
+       		{
+       			long long a = TO_NSEC(md->alttime);
+       			long long b = TO_NSEC(now);
+       			if(a != b)
+       			{
+       				printf("delta %lld\n",b-a);
+	       			now[0] = md->alttime[0];
+	       			now[1] = md->alttime[1];       				
+       			}
+		       			else
+		       				printf("nodelta\n");
+       		}
 			ptype = (int)data[3];
 			treceived[0] = *(int*)data+4;
 			treceived[1] = *(int*)data+8;

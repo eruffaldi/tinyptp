@@ -192,6 +192,19 @@ int master_sm(struct master_data * md, enum Event e, unsigned char * data, int n
 					// TODO: replace it with the SOCKET timestamp if SO_TIMESTAMP available
 					int t4[2];
 					ptp_get_time(t4); // == t4
+		        	if(md->alttime[0] != 0 || md->alttime[1] != 0)
+		       		{
+		       			long long a = TO_NSEC(md->alttime);
+		       			long long b = TO_NSEC(t4);
+		       			if(a != b)
+		       			{
+		       				printf("delta %lld\n",b-a);
+			       			t4[0] = md->alttime[0];
+			       			t4[1] = md->alttime[1];       				
+		       			}
+		       			else
+		       				printf("nodelta\n");
+		       		}
 				    md->sm_diff =  (TO_NSEC(t4) - TO_NSEC(treceived2)); // t4-t3
 				    md->bigstate = MASTER_LOOPEND;				   
 				 	break; // next state

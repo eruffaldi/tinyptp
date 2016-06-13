@@ -1,0 +1,35 @@
+wiced_result_t wiced_time_get_utc_time_ms( wiced_utc_time_ms_t* utc_time_ms )
+{
+    wiced_time_t temp_wiced_time;
+    uint32_t     time_since_last_reference;
+
+    /* Update the UTC time by the time difference between now and the last update */
+    wiced_time_get_time( &temp_wiced_time );
+    time_since_last_reference = ( temp_wiced_time - last_utc_time_wiced_reference );
+
+    if ( time_since_last_reference != 0 )
+    {
+        current_utc_time += time_since_last_reference;
+        last_utc_time_wiced_reference = temp_wiced_time;
+    }
+
+    *utc_time_ms = current_utc_time;
+    return WICED_SUCCESS;
+}
+
+// ThreadX
+wiced_result_t wiced_time_get_time( wiced_time_t* time_ptr )
+{
+    *time_ptr = (wiced_time_t) ( tx_time_get( ) * ms_to_tick_ratio );
+    return WICED_SUCCESS;
+}
+
+// FreeRTOS
+wiced_result_t wiced_time_get_time(wiced_time_t* time_ptr)
+{
+    *time_ptr = (wiced_time_t) ( xTaskGetTickCount( ) * ms_to_tick_ratio ) + wiced_time_offset;
+    return WICED_SUCCESS;
+}
+
+// HAL Drivers of STM32 F4: 1ms controlled by SysTick
+HAL_GetTick()

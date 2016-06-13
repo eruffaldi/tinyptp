@@ -50,12 +50,12 @@
 			send PTPM_NEXT
 	 */
 
-static void ptp_send_packet_in(struct master_data * md, int what, int t_send[2])
+static void ptp_send_packet_in(struct master_data * md, int what, ptp_time_t t_send)
 {
 	unsigned char bufout[4+8+8]; // PTP# timein timeout
 	memcpy(bufout,"PTP",3);
 	bufout[3] = what;
-	memcpy(bufout+4,t_send,8);
+	memcpy(bufout+4,&t_send,8);
 	memset(bufout+12,0,8);
 	ptp_send_packet(md->sock,bufout,sizeof(bufout),md->clientdata,md->clientdatasize);
 }
@@ -67,8 +67,8 @@ static const char * names[] = {"PTPM_START", "PTPM_SYNC", "PTPM_TIMES", "PTPM_DE
 int master_sm(struct master_data * md, enum Event e, unsigned char * data, int n)
 {
 	int ptype = -1;
-	int treceived[2];
-	int treceived2[2];
+	ptp_time_t treceived;
+	ptp_time_t treceived2;
 
 	// multiple steps
 	if(e == EVENT_RESET)
@@ -81,11 +81,9 @@ int master_sm(struct master_data * md, enum Event e, unsigned char * data, int n
 		{			
 			// extract for the state machine and dump
 			ptype = (int)data[3];
-			treceived[0] = *(int*)(data+4);
-			treceived[1] = *(int*)(data+8);
-			treceived2[0] = *(int*)(data+12);
-			treceived2[1] = *(int*)(data+16);
-			printf("master received %s(%d) with t=%d,%d t2=%d,%d\n",ptype >= 0 && ptype < PTPX_MAX ? names[ptype] : "unknown",ptype,treceived[0],treceived[1],treceived2[0],treceived2[1]);
+			treceived = *(ptp_time_t*)(data+4);
+			treceived2 = *(ptp_time_t*)(data+12);
+			printf("master received %s(%d) with t=%lld t2=%lld\n",ptype >= 0 && ptype < PTPX_MAX ? names[ptype] : "unknown",ptype,treceived,treceived2);
 		}
 		else
 		{
@@ -105,8 +103,7 @@ int master_sm(struct master_data * md, enum Event e, unsigned char * data, int n
 		    md-> sum_delay = 0;
 		    md-> i = 0;
 		    md-> bigstate = MASTER_WAIT0;
-		    int dummy[2] = {0,0};
-		    ptp_send_packet_in(md,PTPM_START,dummy);
+		    ptp_send_packet_in(md,PTPM_START,0);
 		    return 0; // wait
 		case MASTER_WAIT0:
 			if(e == EVENT_NEWPACKET)
@@ -120,8 +117,7 @@ int master_sm(struct master_data * md, enum Event e, unsigned char * data, int n
 				else
 				{
 					// check PTPM_START otherwise go MASTER_START
-					int d[2] = {md->nsteps,0};
-				    ptp_send_packet_in(md,PTPM_TIMES,d);
+				    ptp_send_packet_in(md,PTPM_TIMES,md->nsteps);
 				    md->bigstate = MASTER_TIMES;
 					return 0; // wait
 				}
@@ -147,9 +143,9 @@ int master_sm(struct master_data * md, enum Event e, unsigned char * data, int n
 			{	
 				// IMPORTANT: in real PTP we use the clock at the moment of the NIC exit				
 				// NOTE: under Linux with SO_TIMESTAMPING it is possible to know when the packet left the NIC so we'll use SYNCDETAIL
-				int t1[2];
+				ptp_time_t t1;
 				// sync is: get time, send, get answer, measure offset as difference between answer and original
-				ptp_get_time(t1);
+				ptp_get_time(&t1);
 		    	ptp_send_packet_in(md,PTPM_SYNC,t1);
 		    	md->bigstate = MASTER_SYNCANS;
 			}
@@ -172,8 +168,8 @@ int master_sm(struct master_data * md, enum Event e, unsigned char * data, int n
 		case MASTER_DELAY:
 			{	
 				// this is a REQUEST for DELAY we don't care about master time here
-				int tmp[2];
-				ptp_get_time(tmp);
+				ptp_time_t tmp;
+				ptp_get_time(&tmp);
 		    	ptp_send_packet_in(md,PTPM_DELAY,tmp); // NOT used in protocol
 		    	md->bigstate = MASTER_DELAYANS;
 			}
@@ -190,17 +186,16 @@ int master_sm(struct master_data * md, enum Event e, unsigned char * data, int n
 				else
 				{
 					// TODO: replace it with the SOCKET timestamp if SO_TIMESTAMP available
-					int t4[2];
-					ptp_get_time(t4); // == t4
-		        	if(md->alttime[0] != 0 || md->alttime[1] != 0)
+					ptp_time_t t4;
+					ptp_get_time(&t4); // == t4
+		        	if(md->alttime != 0)
 		       		{
-		       			long long a = TO_NSEC(md->alttime);
-		       			long long b = TO_NSEC(t4);
+		       			ptp_time_t a = TO_NSEC(md->alttime);
+		       			ptp_time_t b = TO_NSEC(t4);
 		       			if(a != b)
 		       			{
 		       				printf("delta %lld\n",b-a);
-			       			t4[0] = md->alttime[0];
-			       			t4[1] = md->alttime[1];       				
+		       				t4 = md->alttime;
 		       			}
 		       			else
 		       				printf("nodelta\n");
@@ -239,8 +234,7 @@ int master_sm(struct master_data * md, enum Event e, unsigned char * data, int n
         	}
         	else
         	{
-				int dummy[2] = {0,0};
-		        ptp_send_packet_in(md, PTPM_NEXT, dummy);
+		        ptp_send_packet_in(md, PTPM_NEXT, 0);
         		md->bigstate = MASTER_SYNC;
 		        return 0; // wait
         	}

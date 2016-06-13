@@ -16,7 +16,7 @@ void init_socket();
 extern long long test_extra_offset_ns;
 
 // only used if SO_TIMESTAMP
-extern int recv_with_timestamp(int sock, char * bufin, int bufin_size, int flags, struct sockaddr_in * from_addr, int *from_addr_size, int alttime[2]);
+extern int recv_with_timestamp(int sock, char * bufin, int bufin_size, int flags, struct sockaddr_in * from_addr, int *from_addr_size, ptp_time_t *aa);
 
 
 int main(int argc, char const *argv[])
@@ -82,7 +82,7 @@ int main(int argc, char const *argv[])
 		int n;
 #ifdef SO_TIMESTAMP		
 		if(hastimestamp)
-			n = recv_with_timestamp(md.sock,bufin,sizeof(bufin),0, &out_addr,&rf,md.alttime);
+			n = recv_with_timestamp(md.sock,bufin,sizeof(bufin),0, &out_addr,&rf,&md.alttime);
 		else
 #endif
 			 n = recvfrom(md.sock,bufin,sizeof(bufin),0,&out_addr,&rf);

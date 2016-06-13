@@ -13,6 +13,8 @@
 #include <stdio.h>
 #include <memory.h>
 
+#include "ptp_common.h"
+
 void init_socket()
 {
   #ifdef WIN32
@@ -23,7 +25,7 @@ void init_socket()
 
 long long test_extra_offset_ns;
 
-void ptp_get_time(int in[2])
+void ptp_get_time(ptp_time_t* in)
 {
 #ifdef WIN32
     // no need for absolute time 
@@ -32,31 +34,29 @@ void ptp_get_time(int in[2])
    wintime      -= 116444736000000000;  //1jan1601 to 1jan1970
    wintime *= 100; // nanoseconds from 100-nanosecond
    wintime += test_extra_offset_ns;
-   *(__int64*)in = wintime;
+   *in = wintime;
 #else
     /* check for nanosecond resolution support */
     #ifndef CLOCK_REALTIME
         // TODO: OSX alternative clock
         struct timeval tv = {0};
         gettimeofday(&tv, NULL);
-        in[0] = (int) tv.tv_sec;
-        in[1] = (int) (tv.tv_usec * 1000 + test_extra_offset_ns);
+        *in = (tv.tv_sec*(ptp_time_t)1000000000) + tv.tv_usec*1000 + test_extra_offset_ns;
     #else
         struct timespec ts = {0};
         clock_gettime(CLOCK_REALTIME, &ts);
-        in[0] = (int) ts.tv_sec;
-        in[1] = (int) (ts.tv_nsec + test_extra_offset_ns);
+        *in = (tv.tv_sec*(ptp_time_t)1000000000) + tv.tv_nsec + test_extra_offset_ns;
     #endif
 #endif
 }
 
-void ptp_send_packet(int sock, const char * data, int size, void *clientdata,int clientdatasize)
+void ptp_send_packet(int sock, unsigned char * data, int size, void *clientdata,int clientdatasize)
 {
     sendto(sock, data, size, 0, (struct sockaddr *) clientdata, clientdatasize);
 }
 
 #ifdef SO_TIMESTAMP
-int recv_with_timestamp(int sock, char * bufin, int bufin_size, int flags, struct sockaddr_in * from_addr, int* from_addr_size, int alttime[2])
+int recv_with_timestamp(int sock, char * bufin, int bufin_size, int flags, struct sockaddr_in * from_addr, int* from_addr_size, ptp_time_t* alttime)
 {
       // FROM: https://www.kernel.org/doc/Documentation/networking/timestamping/timestamping.c
       int n;
@@ -78,8 +78,7 @@ int recv_with_timestamp(int sock, char * bufin, int bufin_size, int flags, struc
       msg.msg_control = &control;
       msg.msg_controllen = sizeof(control);
       // mark default
-      alttime[0] = 0;
-      alttime[1] = 0;
+      *alttime = 0;
       n = recvmsg(sock,&msg,flags); //|MSG_DONTWAIT|MSG_ERRQUEUE);
 #if 1
   // generic loopy from linux
@@ -90,8 +89,7 @@ int recv_with_timestamp(int sock, char * bufin, int bufin_size, int flags, struc
             case SO_TIMESTAMP: 
               {
                 struct timeval *stamp = (struct timeval *)CMSG_DATA(cmsg);
-                alttime[0] = stamp->tv_sec;
-                alttime[1] = (int)(stamp->tv_usec*1000 + test_extra_offset_ns);
+                *alttime = (stamp->tv_sec*(ptp_time_t)1000000000) + stamp->tv_usec*1000 + test_extra_offset_ns;
                 return n; // no need to wait for the rest
               }
               break;

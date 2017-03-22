@@ -23,6 +23,12 @@ int main(int argc, char const *argv[])
 {
 	struct master_data md;
 
+	if(argc ==2 && strcmp(argv[1],"-h") == 0)
+	{	
+		printf("tinyptp master socket by ER@SSSA 2016-2017\nSyntax: [outaddress=0.0.0.0 [repeats=10]]\n");
+		return 0;
+	}
+
 	init_socket(); // for windows
 
 	int myport = 1319;
@@ -34,7 +40,7 @@ int main(int argc, char const *argv[])
 	int sock = socket(AF_INET, SOCK_DGRAM, 0);
 	if(sock == 0)
 	{
-		perror("cannot socket");
+		perror("cannot create socket");
 		return -1;
 	}
 
@@ -83,7 +89,7 @@ int main(int argc, char const *argv[])
 			hastimestamp = 1;
 	}
 #endif
-	printf("Listening to %d and sending to %s:%d repeats:%d%s\n",myport,outaddress,outport,repeats,hastimestamp? "has timestamp" : "");
+	printf("Listening to %s:%d and sending to %s:%d repeats:%d%s\n",myaddress,myport,outaddress,outport,repeats,hastimestamp? "has timestamp" : "");
 	master_sm(&md,EVENT_RESET,0,0); // initial step
 
 

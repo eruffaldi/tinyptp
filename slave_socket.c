@@ -23,6 +23,12 @@ int main(int argc, char const *argv[])
 {
 	struct slave_data md;
 
+	if(argc ==2 && strcmp(argv[1],"-h") == 0)
+	{	
+		printf("tinyptp slave socket by ER@SSSA 2016-2017\nSyntax: [offset_ns=0]\n");
+		return 0;
+	}
+
 	init_socket();
 	int myport = 1320;
 	int outport = 1319;
@@ -56,7 +62,8 @@ int main(int argc, char const *argv[])
 	}
     if(bind(sock,(struct sockadrr*)&my_addr,sizeof(my_addr)))
     {
-    	perror("cannot bind master\n");
+    	perror("cannot bind slave ");
+    	printf("to %s:%d\n",myaddress,myport);
     	return -1;
     }
 
@@ -72,7 +79,7 @@ int main(int argc, char const *argv[])
 	}
 #endif
 
-	printf("Listening to %d%s\n",myport,hastimestamp ? "with timestamp" : "");
+	printf("Listening to %s:%d %s\n",myaddress,myport,hastimestamp ? "with timestamp" : "");
 	slave_sm(&md,EVENT_RESET,0,0); // initial step
 	while(1)
 	{
